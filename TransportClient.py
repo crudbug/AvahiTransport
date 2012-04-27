@@ -4,7 +4,7 @@ from dbus.mainloop.glib import DBusGMainLoop
 
 # Looks for iTunes shares
 
-TYPE = '_daap._tcp'
+TYPE = '_demo._tcp'
 
 def service_resolved(*args):
     print 'service resolved'
