@@ -3,16 +3,16 @@ import gobject
 import avahi
 from dbus.mainloop.glib import DBusGMainLoop
 
-serviceName = "Piper Storage JFK"
-serviceType = "_piper._tcp" # See http://www.dns-sd.org/ServiceTypes.html
-servicePort = 12345
-serviceTXT  = "Storage service for local environment" #TXT record for the service
+#global variables
 
-domain      = "" # Domain to publish on, default to .local
-host        = "" # Host to publish records for, default to localhost
-
-group = None #our entry group
-rename_count = 12 # Counter so we only rename after collisions a sensible number of times
+serviceName     = "Piper Storage JFK"
+serviceType     = "_piper._tcp" 
+servicePort     = 12345
+serviceTXT      = "Storage service for local environment" 
+domain          = ""    # Domain to publish on, default to .local
+host            = ""    # Host to publish records for, default to localhost
+group           = None        #our entry group
+rename_count    = 12   # Counter so we only rename after collisions a sensible number of times
 
 def entry_group_state_changed(state, error):
     global serviceName, server, rename_count
