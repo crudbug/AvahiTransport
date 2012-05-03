@@ -91,6 +91,7 @@ class FileShareClientWorker(Thread):
 		# device list store 
 		Thread.__init__(self)
 		self.view = view
+		self.client_started = False
 		
 	def run(self):
 		self.service_lookup()
@@ -149,6 +150,7 @@ class FileShareClientWorker(Thread):
         						avahi.DBUS_INTERFACE_SERVICE_BROWSER)
 
 		self.sbrowser.connect_to_signal("ItemNew", self.service_handler)
+		self.client_started = True
 		gobject.MainLoop().run()
 		
 class ShareFile:
@@ -314,13 +316,6 @@ class FileShareView():
 		frame.add(scrollTree)
 		label = gtk.Label("Devices")
 		self.notebook.append_page(frame, label)
-	
-	def send_file(self, widget, data=None):
-		self.w_send.show_all()
-				
-	def delete(self, widget, event=None):
-		gtk.main_quit()
-		return False
 
 	def start_service(self, widget, data=None):
 		# publish and start server
@@ -329,6 +324,8 @@ class FileShareView():
 		# start listening on service client
 		client = FileShareClientWorker(self)
 		client.start()
+		while(client.client_started is False):
+			pass
 		# change the state of the UI
 		widget.set_sensitive(False)
 		self.b_stop.set_sensitive(True)
@@ -344,10 +341,16 @@ class FileShareView():
 		widget.set_sensitive(False)
 		self.b_start.set_sensitive(True)
 		
-
 	def share_files(self, widget, data=None):
 		self.w_share.show_all()
-
+	
+	def send_file(self, widget, data=None):
+		self.w_send.show_all()
+				
+	def delete(self, widget, event=None):
+		gtk.main_quit()
+		return False
+	
 	def selection_change(self, treeview):
 		(model, iter) = treeview.get_selected()
 		path = model.get_path(iter)
