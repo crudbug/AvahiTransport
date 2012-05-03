@@ -11,24 +11,22 @@ SERVICE_TYPE = '_piper._tcp'
 class DriveBox():
 
 	def service_resolved(self, *args):
-	    print 'service resolved'
-	    print 'name:', 		args[2]
-	    print 'address:', 	args[7]
-	    print 'port:', 		args[8]
-	    self.connectToService(args[7],args[8])
+		print 'service resolved'
+		print 'name:', 		args[2]
+		print 'address:', 	args[7]
+		print 'port:', 		args[8]
+		self.connectToService(args[7],args[8])
 
 	def print_error(self, *args):
-	    print 'error_handler'
-	    print args[0]
-    
+		print 'error_handler'
+		print args[0]
 
 	def serviceHandler(self, interface, protocol, name, stype, domain, flags):
-	    print "Found service '%s' type '%s' domain '%s' " % (name, stype, domain)
-
-	    if flags & avahi.LOOKUP_RESULT_LOCAL:
-	    	pass
-
-	    self.avahi_server.ResolveService(interface, 
+		print "Found service '%s' type '%s' domain '%s' " % (name, stype, domain)
+		if flags & avahi.LOOKUP_RESULT_LOCAL:
+			pass
+		
+		self.avahi_server.ResolveService(interface, 
 	    								protocol, name, stype, 
 	        							domain, avahi.PROTO_UNSPEC, 
 	        							dbus.UInt32(0), 
