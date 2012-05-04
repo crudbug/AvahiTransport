@@ -1,11 +1,10 @@
 #!/usr/bin/env python
 
-#example base.py
-
 import httplib
 import avahi
 import dbus
 import socket
+import signal
 import gobject
 import gtk
 import uuid
@@ -84,14 +83,13 @@ class FileShareService():
 		self.service.unpublish()
 
 
-class FileShareClientWorker(Thread):
+class ClientWorker(Thread):
 	"""FileShare client for listening to service announcements"""
 	
 	def __init__(self, view):
 		# device list store 
 		Thread.__init__(self)
 		self.view = view
-		self.client_started = False
 		
 	def run(self):
 		self.service_lookup()
@@ -103,7 +101,8 @@ class FileShareClientWorker(Thread):
 		print 'port:', 		args[8]
 		self.view.call_notify("Found device : %s" % args[2])
 		
-		self.connect_service(args[7],args[8])
+		#self.connect_service(args[7],args[8])
+		self.view.f_store.append([args[2], gtk.STOCK_DIRECTORY, True])
 		
 	def connect_service(self, address , port):
 		print("connecting to %s:%s ..." %(address, port))
@@ -118,10 +117,14 @@ class FileShareClientWorker(Thread):
 		print 'error_handler'
 		print args[0]
 
-	def service_handler(self, interface, protocol, name, stype, domain, flags):
+	def service_added(self, interface, protocol, name, stype, domain, flags):
 		print "Found service '%s' type '%s' domain '%s' " % (name, stype, domain)
 		if flags & avahi.LOOKUP_RESULT_LOCAL:
-			pass
+			print("local result lookup")
+			return
+		elif (flags & avahi.LOOKUP_RESULT_OUR_OWN):
+			print("our own result lookup")
+			return
 		
 		self.avahi_server.ResolveService(interface, 
 	    								protocol, name, stype, 
@@ -130,28 +133,25 @@ class FileShareClientWorker(Thread):
 	        							reply_handler=self.service_resolved, 
 	        							error_handler=self.print_error)
 
+	def service_removed(self, interface, protocol, name, stype, domain, flags):
+		print "Found removed '%s' type '%s' domain '%s' " % (name, stype, domain)
 
 	def service_lookup(self):
-		self.loop			= DBusGMainLoop()
-		self.bus 			= dbus.SystemBus(mainloop=self.loop)
-		self.host_name 		= socket.gethostname()
-		
-		self.avahi_server 	= dbus.Interface(self.bus.get_object(avahi.DBUS_NAME,
-								avahi.DBUS_PATH_SERVER), avahi.DBUS_INTERFACE_SERVER)
-
-		self.sbrowser 		= dbus.Interface(self.bus.get_object(
-									avahi.DBUS_NAME,
-        							self.avahi_server.ServiceBrowserNew(
-        									avahi.IF_UNSPEC,
+		self.bus 			= dbus.SystemBus()
+		avahi_bus_obj		= self.bus.get_object(avahi.DBUS_NAME,
+								avahi.DBUS_PATH_SERVER)
+		self.avahi_server 	= dbus.Interface(avahi_bus_obj, avahi.DBUS_INTERFACE_SERVER)
+		browser 			= self.avahi_server.ServiceBrowserNew(avahi.IF_UNSPEC,
             								avahi.PROTO_UNSPEC, 
             								SERVICE_TYPE, 
             								'local', 
-            								dbus.UInt32(0))),
+            								dbus.UInt32(0))
+		service_obj			= self.bus.get_object(avahi.DBUS_NAME, browser)
+		self.sbrowser 		= dbus.Interface(service_obj,
         						avahi.DBUS_INTERFACE_SERVICE_BROWSER)
 
-		self.sbrowser.connect_to_signal("ItemNew", self.service_handler)
-		self.client_started = True
-		gobject.MainLoop().run()
+		self.sbrowser.connect_to_signal("ItemNew", self.service_added)
+		self.sbrowser.connect_to_signal("ItemRemove", self.service_removed)
 		
 class ShareFile:
 	"""
@@ -190,7 +190,7 @@ class FileShareView():
 		self.w_share.set_border_width(10)
 		self.w_share.set_size_request(250,150)
 		self.share_image = gtk.Image()
-		self.share_image.set_from_file("box_small.png")
+		self.share_image.set_from_file("res/box_small.png")
 		self.w_share.add(self.share_image)
 
 		#Drag and Drop for the share window
@@ -207,7 +207,7 @@ class FileShareView():
 		self.w_send.set_border_width(10)
 		self.w_send.set_size_request(250,150)
 		self.send_image = gtk.Image()
-		self.send_image.set_from_file("send_box.jpg")
+		self.send_image.set_from_file("res/send_box.jpg")
 		self.w_send.add(self.send_image)
 		
 		#Drag and Drop for the send window
@@ -269,8 +269,8 @@ class FileShareView():
 		# Treeview for the folders
 		frame = gtk.Frame()
 		frame.set_border_width(10)
-		self.l_store = gtk.ListStore(str, str, 'gboolean')
-		self.f_treeview = gtk.TreeView(self.l_store)
+		self.f_store = gtk.ListStore(str, str, 'gboolean')
+		self.f_treeview = gtk.TreeView(self.f_store)
 		# create the TreeViewColumns to display the data
 		tvcolumn = gtk.TreeViewColumn()
 		# add columns to treeview
@@ -322,10 +322,8 @@ class FileShareView():
 		self.file_service.publish()
 		self.file_service.start()
 		# start listening on service client
-		client = FileShareClientWorker(self)
+		client = ClientWorker(self)
 		client.start()
-		while(client.client_started is False):
-			pass
 		# change the state of the UI
 		widget.set_sensitive(False)
 		self.b_stop.set_sensitive(True)
@@ -435,7 +433,7 @@ class FileShareView():
 				print("processing path : %s" % p)
 				folderId = uuid.uuid4()
 				self.list_all_files(p, folderId)
-				self.ls_folders.append([p,gtk.STOCK_DIRECTORY,True])
+				self.f_store.append([p,gtk.STOCK_DIRECTORY,True])
 			else:
 				print("file cannot be processed %s" % p)
 		
@@ -449,18 +447,18 @@ class FileShareView():
 	def prepare_send(self, path):
 		print("preparing to send %s" % path)
 		pass
-		
-	def show(self):
-		gtk.main()
 
 def test():
 	pass
 
 def main():
 	try:
+		DBusGMainLoop(set_as_default=True)
+		signal.signal(signal.SIGINT, signal.SIG_DFL)
+		gobject.threads_init()
 		service = FileShareService()
 		view 	= FileShareView(service)
-		view.show()
+		gtk.main()
 	except KeyboardInterrupt:
 		service.unpublish()
 		print("unpublishing FileServe service")
