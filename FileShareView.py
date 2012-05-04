@@ -58,7 +58,7 @@ class FileShareService():
 		
 	def publish(self):
 		from socket import gethostname
-		name = SERVICE_NAME + gethostname() + ":" + uuid.uuid4()
+		name = SERVICE_NAME + gethostname() + ":" + str(uuid.uuid4())
 		self.service = PiperService(name, 
 						SERVICE_PORT,
 						SERVICE_TYPE)
